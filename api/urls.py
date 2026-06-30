@@ -53,6 +53,29 @@ urlpatterns = [
     path('user-settings/<str:email>/documents', views.user_documents),
     path('user-settings/<str:email>/documents/<str:doc_type>', views.user_document_detail),
 
+    # Employees module — Attendance / Check-In-Out
+    path('attendance', views.attendance),
+    path('attendance/check-in', views.attendance_check_in),
+    path('attendance/check-out', views.attendance_check_out),
+    path('attendance/today', views.attendance_today),
+    path('attendance/events', views.attendance_events),
+    path('attendance/team', views.attendance_team),
+    path('attendance/presence', views.attendance_presence),
+    path('attendance/<int:pk>', views.attendance_detail),
+
+    # Employees module — Leave Management
+    path('leave', views.leave),
+    path('leave/balance', views.leave_balance),
+    path('leave/<int:pk>', views.leave_detail),
+
+    # Employees module — Task Tracker
+    path('tasks', views.tasks),
+    path('tasks/<int:pk>', views.task_detail),
+
+    # Employees module — Work Submissions
+    path('submissions', views.submissions),
+    path('submissions/<int:pk>', views.submission_detail),
+
     path('config', views.client_config),
     path('health', views.health),
 ]

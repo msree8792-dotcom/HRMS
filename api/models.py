@@ -146,6 +146,8 @@ class UserProfile(models.Model):
     phone = models.CharField(max_length=40, default='', blank=True)
     alt_email = models.CharField(max_length=255, default='', blank=True)
     blood_group = models.CharField(max_length=10, default='', blank=True)
+    department = models.CharField(max_length=120, default='', blank=True)
+    designation = models.CharField(max_length=120, default='', blank=True)
     address = models.TextField(null=True, blank=True)
     profile_pic = models.TextField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -234,3 +236,112 @@ class LiveSession(models.Model):
     class Meta:
         db_table = 'live_sessions'
         ordering = ['-id']
+
+
+# ===========================================================================
+# Employees module
+# Attendance / Check-In-Out · Leave · Tasks · Work Submissions.
+# Employees are identified by their login email (app_users / user_profiles);
+# there is no separate roster table.
+# ===========================================================================
+class EmployeeAttendance(models.Model):
+    """One row per employee per day. Check-in stamps ``check_in`` (and the
+    device it came from); check-out stamps ``check_out`` and computes
+    ``worked_minutes``. ``status`` is derived on check-in (present/late)."""
+    email = models.CharField(max_length=255, db_index=True)
+    employee_name = models.CharField(max_length=255, default='', blank=True)
+    date = models.DateField(db_index=True)
+    check_in = models.DateTimeField(null=True, blank=True)
+    check_out = models.DateTimeField(null=True, blank=True)
+    device = models.CharField(max_length=20, default='', blank=True)   # mobile | desktop
+    status = models.CharField(max_length=20, default='present')        # present | late | absent | half-day
+    # Live presence chosen from the STATUS picker (Available / Away / Busy /
+    # Do not disturb / ...). Empty = fall back to location-derived team status.
+    presence = models.CharField(max_length=40, default='', blank=True)
+    presence_at = models.DateTimeField(null=True, blank=True)
+    worked_minutes = models.IntegerField(default=0)
+    note = models.CharField(max_length=255, default='', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'employee_attendance'
+        ordering = ['-date', '-id']
+        unique_together = (('email', 'date'),)
+
+
+class LeaveRequest(models.Model):
+    """A leave application with an approval workflow."""
+    email = models.CharField(max_length=255, db_index=True)
+    employee_name = models.CharField(max_length=255, default='', blank=True)
+    type = models.CharField(max_length=60, default='Casual Leave')
+    from_date = models.DateField()
+    to_date = models.DateField()
+    days = models.IntegerField(default=1)
+    reason = models.TextField(null=True, blank=True)
+    status = models.CharField(max_length=20, default='Pending')   # Pending | Approved | Rejected
+    approver = models.CharField(max_length=255, default='', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'leave_requests'
+        ordering = ['-id']
+
+
+class EmployeeTask(models.Model):
+    """A task on the Task Tracker board."""
+    title = models.CharField(max_length=255)
+    assignee = models.CharField(max_length=255, default='', blank=True)
+    assignee_email = models.CharField(max_length=255, default='', blank=True)
+    due = models.CharField(max_length=60, default='', blank=True)   # date string as the UI sends it
+    priority = models.CharField(max_length=20, default='medium')    # low | medium | high
+    stage = models.CharField(max_length=20, default='todo')         # todo | inprogress | done
+    description = models.TextField(null=True, blank=True)
+    created_by = models.CharField(max_length=255, default='', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'employee_tasks'
+        ordering = ['-id']
+
+
+class WorkSubmission(models.Model):
+    """A work item / deliverable submitted by an employee for review."""
+    email = models.CharField(max_length=255, db_index=True)
+    employee_name = models.CharField(max_length=255, default='', blank=True)
+    title = models.CharField(max_length=255)
+    type = models.CharField(max_length=60, default='Document', blank=True)
+    date = models.DateField(null=True, blank=True)
+    summary = models.TextField(null=True, blank=True)
+    link = models.CharField(max_length=500, default='', blank=True)
+    file_name = models.CharField(max_length=255, default='', blank=True)
+    status = models.CharField(max_length=20, default='Pending')   # Pending | In Review | Approved | Rejected
+    reviewer = models.CharField(max_length=255, default='', blank=True)
+    ai_score = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'work_submissions'
+        ordering = ['-id']
+
+
+class AttendanceEvent(models.Model):
+    """A single timeline event on an employee's day — check-in / check-out,
+    break start / end, or a work-mode switch (office <-> remote). These rows
+    drive the "Today's Activity Log" panel (per employee) and the
+    "Team Status Now" panel (latest event per employee → live status)."""
+    # check-in | check-out | break-start | break-end | remote-switch | office-switch
+    email = models.CharField(max_length=255, db_index=True)
+    employee_name = models.CharField(max_length=255, default='', blank=True)
+    date = models.DateField(db_index=True)
+    event = models.CharField(max_length=30)
+    location = models.CharField(max_length=120, default='', blank=True)
+    at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'attendance_events'
+        ordering = ['at', 'id']

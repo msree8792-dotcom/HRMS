@@ -31,24 +31,34 @@ from rest_framework.response import Response
 from . import ai, mailer, social_poster
 from .models import (
     AppUser,
+    AttendanceEvent,
+    EmployeeAttendance,
+    EmployeeTask,
     InterviewLink,
     InterviewRecording,
     JobPost,
+    LeaveRequest,
     QuestionSet,
     ResumeScore,
     UserDocument,
     UserEmailConfig,
     UserProfile,
+    WorkSubmission,
 )
 from .serializers import (
     AppUserSerializer,
+    AttendanceEventSerializer,
+    EmployeeAttendanceSerializer,
+    EmployeeTaskSerializer,
     InterviewLinkSerializer,
     InterviewRecordingSerializer,
     JobPostSerializer,
+    LeaveRequestSerializer,
     ResumeScoreSerializer,
     UserDocumentSerializer,
     UserEmailConfigSerializer,
     UserProfileSerializer,
+    WorkSubmissionSerializer,
 )
 
 # ---------------------------------------------------------------------------
@@ -809,6 +819,8 @@ def user_profile(request, email):
             'phone': body.get('phone', ''),
             'alt_email': body.get('altEmail', ''),
             'blood_group': body.get('bloodGroup', ''),
+            'department': body.get('department', ''),
+            'designation': body.get('designation', ''),
             'address': body.get('address', ''),
             'profile_pic': body.get('profilePic', ''),
         },
@@ -925,6 +937,429 @@ def user_detail(request, email):
     # DELETE
     obj.delete()
     return Response({'ok': True})
+
+
+# ===========================================================================
+# Employees module — Attendance / Check-In-Out · Leave · Tasks · Submissions
+# ===========================================================================
+# An employee whose first check-in lands after this time is marked "late".
+ATTENDANCE_LATE_AFTER = (9, 30)  # 09:30
+
+DEFAULT_LEAVE_ALLOWANCE = [
+    ('Casual Leave', 12),
+    ('Sick Leave', 12),
+    ('Earned Leave', 15),
+]
+
+
+def parse_date(value):
+    """Parse a 'YYYY-MM-DD' string into a date (None if blank/invalid)."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(str(value).strip()[:10], '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return None
+
+
+# --- Attendance + Check-In / Check-Out -------------------------------------
+@api_view(['GET'])
+def attendance(request):
+    """List attendance rows, filterable by ?email=, ?date=, ?from=, ?to=."""
+    qs = EmployeeAttendance.objects.all()
+    email = norm_email(request.GET.get('email'))
+    if email:
+        qs = qs.filter(email=email)
+    exact = parse_date(request.GET.get('date'))
+    if exact:
+        qs = qs.filter(date=exact)
+    frm = parse_date(request.GET.get('from'))
+    if frm:
+        qs = qs.filter(date__gte=frm)
+    to = parse_date(request.GET.get('to'))
+    if to:
+        qs = qs.filter(date__lte=to)
+    return Response(EmployeeAttendanceSerializer(qs, many=True).data)
+
+
+def _is_checked_in(obj):
+    """True when there is an open work session (checked in after last checkout)."""
+    return bool(obj.check_in and (obj.check_out is None or obj.check_in > obj.check_out))
+
+
+@api_view(['POST'])
+def attendance_check_in(request):
+    """Start a work session. Re-checking-in later the same day starts a new
+    session; previously accumulated ``worked_minutes`` are preserved."""
+    body = request.data
+    email = norm_email(body.get('email'))
+    if not email:
+        return err('email is required')
+    now = datetime.now()
+    obj, created = EmployeeAttendance.objects.get_or_create(email=email, date=now.date())
+    name = body.get('employee') or body.get('name') or ''
+    if name:
+        obj.employee_name = name
+    if body.get('device'):
+        obj.device = body.get('device')
+    # Status (present/late) is decided by the first check-in of the day only.
+    if created:
+        obj.status = 'late' if (now.hour, now.minute) > ATTENDANCE_LATE_AFTER else 'present'
+    # Start a new session: stamp the session start, leave worked_minutes intact.
+    obj.check_in = now
+    obj.save()
+    # Drop a "Check In" event onto today's activity log / team status feed.
+    AttendanceEvent.objects.create(
+        email=email, employee_name=obj.employee_name, date=now.date(),
+        event='check-in', location=('Home' if obj.device == 'mobile' else 'Office'),
+        at=now,
+    )
+    return Response(EmployeeAttendanceSerializer(obj).data, status=201)
+
+
+@api_view(['POST'])
+def attendance_check_out(request):
+    """Close the open work session, ADDING its minutes to the running total so
+    multiple check-in/out cycles in one day accumulate."""
+    body = request.data
+    email = norm_email(body.get('email'))
+    if not email:
+        return err('email is required')
+    now = datetime.now()
+    obj = EmployeeAttendance.objects.filter(email=email, date=now.date()).first()
+    if not obj:
+        return err('No check-in found for today', 404)
+    if _is_checked_in(obj):
+        session = max(int((now - obj.check_in).total_seconds() // 60), 0)
+        obj.worked_minutes = (obj.worked_minutes or 0) + session
+    obj.check_out = now
+    obj.presence = ''          # leaving for the day clears live presence
+    obj.presence_at = now
+    obj.save()
+    AttendanceEvent.objects.create(
+        email=email, employee_name=obj.employee_name, date=now.date(),
+        event='check-out', location='', at=now,
+    )
+    return Response(EmployeeAttendanceSerializer(obj).data)
+
+
+@api_view(['GET'])
+def attendance_today(request):
+    """Today's attendance snapshot for ?email= (used by the check-in widget)."""
+    email = norm_email(request.GET.get('email'))
+    if not email:
+        return err('email is required')
+    obj = EmployeeAttendance.objects.filter(email=email, date=datetime.now().date()).first()
+    if not obj:
+        return Response({
+            'email': email, 'date': datetime.now().strftime('%Y-%m-%d'),
+            'checkedIn': False, 'checkIn': None, 'checkOut': None,
+            'workedMinutes': 0, 'status': 'absent',
+        })
+    return Response(EmployeeAttendanceSerializer(obj).data)
+
+
+@api_view(['PUT', 'DELETE'])
+def attendance_detail(request, pk):
+    """Manual edit / removal of an attendance row (HR/admin)."""
+    obj = EmployeeAttendance.objects.filter(pk=pk).first()
+    if not obj:
+        return err('Attendance record not found', 404)
+    if request.method == 'DELETE':
+        obj.delete()
+        return Response({'ok': True})
+    serializer = EmployeeAttendanceSerializer(obj, data=request.data, partial=True)
+    if not serializer.is_valid():
+        return serializer_err(serializer)
+    serializer.save()
+    return Response(serializer.data)
+
+
+# --- Activity Log + Team Status (attendance_events) ------------------------
+# Valid activity-log event types (mirrors ATTENDANCE_EVENT_LABELS).
+ATTENDANCE_EVENT_TYPES = (
+    'check-in', 'check-out', 'break-start', 'break-end',
+    'remote-switch', 'office-switch',
+)
+
+
+@api_view(['GET', 'POST'])
+def attendance_events(request):
+    """GET: today's (or ?date=) activity-log events for ?email=.
+    POST: append an event (break / mode switch) to the signed-in user's day."""
+    if request.method == 'GET':
+        day = parse_date(request.GET.get('date')) or datetime.now().date()
+        qs = AttendanceEvent.objects.filter(date=day)
+        email = norm_email(request.GET.get('email'))
+        if email:
+            qs = qs.filter(email=email)
+        return Response(AttendanceEventSerializer(qs, many=True).data)
+
+    body = request.data
+    email = norm_email(body.get('email'))
+    event = str(body.get('event') or body.get('type') or '').strip()
+    if not email:
+        return err('email is required')
+    if event not in ATTENDANCE_EVENT_TYPES:
+        return err('event must be one of: ' + ', '.join(ATTENDANCE_EVENT_TYPES))
+    now = datetime.now()
+    obj = AttendanceEvent.objects.create(
+        email=email,
+        employee_name=body.get('employee') or body.get('name') or '',
+        date=now.date(),
+        event=event,
+        location=str(body.get('location') or '').strip(),
+        at=now,
+    )
+    # Keep the day's presence in step with break transitions so the Team Status
+    # panel matches the activity log (start break -> Away; end break -> clear).
+    if event in ('break-start', 'break-end'):
+        att = EmployeeAttendance.objects.filter(email=email, date=now.date()).first()
+        if att:
+            att.presence = 'Away' if event == 'break-start' else ''
+            att.presence_at = now
+            att.save()
+    return Response(AttendanceEventSerializer(obj).data, status=201)
+
+
+@api_view(['POST'])
+def attendance_presence(request):
+    """Set the signed-in employee's live presence (the STATUS picker:
+    Available / Away / Busy / Do not disturb / ...). Valid only while checked
+    in. Selecting 'Away' logs a Break Start on the activity log (and leaving
+    'Away' logs a Break End) so the timeline stays consistent."""
+    body = request.data
+    email = norm_email(body.get('email'))
+    label = str(body.get('label') or '').strip()
+    if not email:
+        return err('email is required')
+    if not label:
+        return err('label is required')
+    now = datetime.now()
+    att = EmployeeAttendance.objects.filter(email=email, date=now.date()).first()
+    if not att or not _is_checked_in(att):
+        return err('Presence can only be set while checked in', 409)
+    prev = att.presence or ''
+    name = att.employee_name or body.get('employee') or body.get('name') or ''
+    if label == 'Away' and prev != 'Away':
+        AttendanceEvent.objects.create(
+            email=email, employee_name=name, date=now.date(),
+            event='break-start', location='', at=now,
+        )
+    elif prev == 'Away' and label != 'Away':
+        AttendanceEvent.objects.create(
+            email=email, employee_name=name, date=now.date(),
+            event='break-end',
+            location=('Home' if att.device == 'mobile' else 'Office'), at=now,
+        )
+    att.presence = label
+    att.presence_at = now
+    att.save()
+    return Response(EmployeeAttendanceSerializer(att).data)
+
+
+def _team_status(event, att):
+    """Live status label + 'since' datetime for the Team Status panel. An
+    explicit presence choice (STATUS picker / break) wins; otherwise we fall
+    back to the location implied by the latest activity event. Checked-out or
+    no-show employees are Absent."""
+    if att is None or not _is_checked_in(att):
+        return 'Absent', None
+    if att.presence:
+        return att.presence, (att.presence_at or att.check_in)
+    if event is not None:
+        e = event.event
+        if e in ('check-in', 'office-switch', 'break-end'):
+            loc = (event.location or '').lower()
+            remote = 'home' in loc or 'remote' in loc
+            return ('Remote' if remote else 'In Office'), event.at
+        if e == 'remote-switch':
+            return 'Remote', event.at
+        if e == 'break-start':
+            return 'On Break', event.at
+    return ('Remote' if att.device == 'mobile' else 'In Office'), att.check_in
+
+
+@api_view(['GET'])
+def attendance_team(request):
+    """Live presence snapshot for the whole team (Team Status Now panel).
+    Status per person comes from their latest activity event today, else from
+    their attendance record; everyone else is shown as Absent."""
+    today = datetime.now().date()
+
+    # Latest event per email today (queryset is ordered by ``at`` ascending, so
+    # the last write per email wins) + the best name we have seen for them.
+    latest_event = {}
+    event_name = {}
+    for ev in AttendanceEvent.objects.filter(date=today):
+        latest_event[ev.email] = ev
+        if ev.employee_name:
+            event_name[ev.email] = ev.employee_name
+    today_att = {a.email: a for a in EmployeeAttendance.objects.filter(date=today)}
+
+    # Roster = all app users, plus any email that has activity but no login row.
+    roster = [(u.email, u.full_name) for u in AppUser.objects.all()]
+    known = {e for e, _ in roster}
+    for email in set(list(latest_event.keys()) + list(today_att.keys())):
+        if email not in known:
+            att = today_att.get(email)
+            roster.append((email, event_name.get(email) or (att.employee_name if att else '')))
+
+    priority = {'In Office': 0, 'Remote': 1, 'On Break': 2, 'Absent': 3}
+    rows = []
+    for email, name in roster:
+        att = today_att.get(email)
+        status, since_dt = _team_status(latest_event.get(email), att)
+        display = (name or event_name.get(email)
+                   or (att.employee_name if att else '') or email.split('@')[0])
+        rows.append({
+            'email': email,
+            'name': display,
+            'status': status,
+            'since': since_dt.strftime('%I:%M %p') if since_dt else '—',
+        })
+    rows.sort(key=lambda r: (priority.get(r['status'], 9), r['name'].lower()))
+    return Response(rows)
+
+
+# --- Leave Management ------------------------------------------------------
+@api_view(['GET', 'POST'])
+def leave(request):
+    if request.method == 'GET':
+        qs = LeaveRequest.objects.all()
+        email = norm_email(request.GET.get('email'))
+        if email:
+            qs = qs.filter(email=email)
+        status_filter = request.GET.get('status')
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return Response(LeaveRequestSerializer(qs, many=True).data)
+
+    body = request.data
+    email = norm_email(body.get('email'))
+    if not email:
+        return err('email is required')
+    if not body.get('fromDate') or not body.get('toDate'):
+        return err('fromDate and toDate are required')
+    serializer = LeaveRequestSerializer(data={**body, 'email': email})
+    if not serializer.is_valid():
+        return serializer_err(serializer)
+    serializer.save()
+    return Response(serializer.data, status=201)
+
+
+@api_view(['PUT', 'DELETE'])
+def leave_detail(request, pk):
+    obj = LeaveRequest.objects.filter(pk=pk).first()
+    if not obj:
+        return err('Leave request not found', 404)
+    if request.method == 'DELETE':
+        obj.delete()
+        return Response({'ok': True})
+    serializer = LeaveRequestSerializer(obj, data=request.data, partial=True)
+    if not serializer.is_valid():
+        return serializer_err(serializer)
+    serializer.save()
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+def leave_balance(request):
+    """Per-type leave balance for ?email= (allowance − approved days)."""
+    email = norm_email(request.GET.get('email'))
+    if not email:
+        return err('email is required')
+    used = {}
+    for lr in LeaveRequest.objects.filter(email=email, status='Approved'):
+        used[lr.type] = used.get(lr.type, 0) + (lr.days or 0)
+    balances = [
+        {'type': typ, 'allowance': allowance,
+         'used': used.get(typ, 0), 'remaining': max(allowance - used.get(typ, 0), 0)}
+        for typ, allowance in DEFAULT_LEAVE_ALLOWANCE
+    ]
+    return Response({'email': email, 'balances': balances})
+
+
+# --- Task Tracker ----------------------------------------------------------
+@api_view(['GET', 'POST'])
+def tasks(request):
+    if request.method == 'GET':
+        qs = EmployeeTask.objects.all()
+        assignee = request.GET.get('assignee')
+        if assignee:
+            qs = qs.filter(assignee=assignee)
+        assignee_email = norm_email(request.GET.get('assigneeEmail'))
+        if assignee_email:
+            qs = qs.filter(assignee_email=assignee_email)
+        stage = request.GET.get('stage')
+        if stage:
+            qs = qs.filter(stage=stage)
+        return Response(EmployeeTaskSerializer(qs, many=True).data)
+
+    body = request.data
+    if not body.get('title'):
+        return err('title is required')
+    serializer = EmployeeTaskSerializer(data=body)
+    if not serializer.is_valid():
+        return serializer_err(serializer)
+    serializer.save()
+    return Response(serializer.data, status=201)
+
+
+@api_view(['PUT', 'DELETE'])
+def task_detail(request, pk):
+    obj = EmployeeTask.objects.filter(pk=pk).first()
+    if not obj:
+        return err('Task not found', 404)
+    if request.method == 'DELETE':
+        obj.delete()
+        return Response({'ok': True})
+    serializer = EmployeeTaskSerializer(obj, data=request.data, partial=True)
+    if not serializer.is_valid():
+        return serializer_err(serializer)
+    serializer.save()
+    return Response(serializer.data)
+
+
+# --- Work Submissions ------------------------------------------------------
+@api_view(['GET', 'POST'])
+def submissions(request):
+    if request.method == 'GET':
+        qs = WorkSubmission.objects.all()
+        email = norm_email(request.GET.get('email'))
+        if email:
+            qs = qs.filter(email=email)
+        status_filter = request.GET.get('status')
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return Response(WorkSubmissionSerializer(qs, many=True).data)
+
+    body = request.data
+    email = norm_email(body.get('email'))
+    if not email:
+        return err('email is required')
+    if not body.get('title'):
+        return err('title is required')
+    serializer = WorkSubmissionSerializer(data={**body, 'email': email})
+    if not serializer.is_valid():
+        return serializer_err(serializer)
+    serializer.save()
+    return Response(serializer.data, status=201)
+
+
+@api_view(['PUT', 'DELETE'])
+def submission_detail(request, pk):
+    obj = WorkSubmission.objects.filter(pk=pk).first()
+    if not obj:
+        return err('Submission not found', 404)
+    if request.method == 'DELETE':
+        obj.delete()
+        return Response({'ok': True})
+    serializer = WorkSubmissionSerializer(obj, data=request.data, partial=True)
+    if not serializer.is_valid():
+        return serializer_err(serializer)
+    serializer.save()
+    return Response(serializer.data)
 
 
 # ---------------------------------------------------------------------------

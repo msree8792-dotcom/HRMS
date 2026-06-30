@@ -18,14 +18,19 @@ from rest_framework import serializers
 
 from .models import (
     AppUser,
+    AttendanceEvent,
+    EmployeeAttendance,
+    EmployeeTask,
     InterviewLink,
     InterviewRecording,
     JobPost,
+    LeaveRequest,
     QuestionSet,
     ResumeScore,
     UserDocument,
     UserEmailConfig,
     UserProfile,
+    WorkSubmission,
 )
 
 # Datetime wire format used everywhere by the original API (naive, USE_TZ=False).
@@ -452,10 +457,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = [
             'email', 'firstName', 'lastName', 'phone', 'altEmail',
-            'bloodGroup', 'address', 'profilePic',
+            'bloodGroup', 'department', 'designation', 'address', 'profilePic',
         ]
         extra_kwargs = {
             'phone': {'required': False, 'allow_blank': True, 'default': ''},
+            'department': {'required': False, 'allow_blank': True, 'default': ''},
+            'designation': {'required': False, 'allow_blank': True, 'default': ''},
             'address': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
         }
 
@@ -467,6 +474,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'phone': instance.phone or '',
             'altEmail': instance.alt_email or '',
             'bloodGroup': instance.blood_group or '',
+            'department': instance.department or '',
+            'designation': instance.designation or '',
             'address': instance.address or '',
             'profilePic': instance.profile_pic or '',
             'updatedAt': instance.updated_at.strftime(DATETIME_FMT) if instance.updated_at else None,
@@ -534,3 +543,209 @@ class UserDocumentSerializer(serializers.ModelSerializer):
         if self._include_data:
             base['fileData'] = instance.file_data or ''
         return base
+
+
+# ---------------------------------------------------------------------------
+# Employees module
+# ---------------------------------------------------------------------------
+DATE_FMT = '%Y-%m-%d'
+
+
+class EmployeeAttendanceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeAttendance
+        fields = [
+            'id', 'email', 'employee_name', 'date', 'check_in', 'check_out',
+            'device', 'status', 'worked_minutes', 'note',
+        ]
+        read_only_fields = ['id']
+
+    def to_representation(self, instance):
+        checked_in = bool(
+            instance.check_in
+            and (instance.check_out is None or instance.check_in > instance.check_out)
+        )
+        return {
+            'id': instance.id,
+            'email': instance.email,
+            'employee': instance.employee_name or '',
+            'date': instance.date.strftime(DATE_FMT) if instance.date else None,
+            'checkIn': instance.check_in.strftime(DATETIME_FMT) if instance.check_in else None,
+            'checkOut': instance.check_out.strftime(DATETIME_FMT) if instance.check_out else None,
+            'checkInTime': instance.check_in.strftime('%H:%M') if instance.check_in else None,
+            'checkOutTime': instance.check_out.strftime('%H:%M') if instance.check_out else None,
+            'checkedIn': checked_in,
+            'device': instance.device or '',
+            'status': instance.status,
+            'presence': instance.presence or '',
+            'workedMinutes': instance.worked_minutes,
+            'note': instance.note or '',
+        }
+
+
+class LeaveRequestSerializer(serializers.ModelSerializer):
+    employee = serializers.CharField(source='employee_name', required=False, allow_blank=True, default='')
+    fromDate = serializers.DateField(source='from_date')
+    toDate = serializers.DateField(source='to_date')
+
+    class Meta:
+        model = LeaveRequest
+        fields = [
+            'id', 'email', 'employee', 'type', 'fromDate', 'toDate',
+            'days', 'reason', 'status', 'approver',
+        ]
+        read_only_fields = ['id']
+        extra_kwargs = {
+            'type': {'required': False, 'default': 'Casual Leave'},
+            'days': {'required': False, 'default': 1},
+            'reason': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
+            'status': {'required': False, 'default': 'Pending'},
+            'approver': {'required': False, 'allow_blank': True, 'default': ''},
+        }
+
+    def to_representation(self, instance):
+        return {
+            'id': instance.id,
+            'email': instance.email,
+            'employee': instance.employee_name or '',
+            'type': instance.type,
+            'fromDate': instance.from_date.strftime(DATE_FMT) if instance.from_date else None,
+            'toDate': instance.to_date.strftime(DATE_FMT) if instance.to_date else None,
+            'days': instance.days,
+            'reason': instance.reason or '',
+            'status': instance.status,
+            'approver': instance.approver or '',
+            'createdAt': instance.created_at.strftime(DATETIME_FMT) if instance.created_at else None,
+        }
+
+    def create(self, validated_data):
+        # Derive the day count from the date range when the client didn't send it.
+        if not validated_data.get('days'):
+            fd, td = validated_data.get('from_date'), validated_data.get('to_date')
+            validated_data['days'] = max((td - fd).days + 1, 1) if fd and td else 1
+        return super().create(validated_data)
+
+
+class EmployeeTaskSerializer(serializers.ModelSerializer):
+    assigneeEmail = serializers.CharField(source='assignee_email', required=False, allow_blank=True, default='')
+    createdBy = serializers.CharField(source='created_by', required=False, allow_blank=True, default='')
+
+    class Meta:
+        model = EmployeeTask
+        fields = [
+            'id', 'title', 'assignee', 'assigneeEmail', 'due', 'priority',
+            'stage', 'description', 'createdBy',
+        ]
+        read_only_fields = ['id']
+        extra_kwargs = {
+            'assignee': {'required': False, 'allow_blank': True, 'default': ''},
+            'due': {'required': False, 'allow_blank': True, 'default': ''},
+            'priority': {'required': False, 'default': 'medium'},
+            'stage': {'required': False, 'default': 'todo'},
+            'description': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
+        }
+
+    def to_representation(self, instance):
+        return {
+            'id': instance.id,
+            'title': instance.title,
+            'assignee': instance.assignee or '',
+            'assigneeEmail': instance.assignee_email or '',
+            'due': instance.due or '',
+            'priority': instance.priority,
+            'stage': instance.stage,
+            'description': instance.description or '',
+            'createdBy': instance.created_by or '',
+            'createdAt': instance.created_at.strftime(DATETIME_FMT) if instance.created_at else None,
+        }
+
+
+class WorkSubmissionSerializer(serializers.ModelSerializer):
+    employee = serializers.CharField(source='employee_name', required=False, allow_blank=True, default='')
+    fileName = serializers.CharField(source='file_name', required=False, allow_blank=True, default='')
+    aiScore = serializers.IntegerField(source='ai_score', required=False, default=0)
+
+    class Meta:
+        model = WorkSubmission
+        fields = [
+            'id', 'email', 'employee', 'title', 'type', 'date', 'summary',
+            'link', 'fileName', 'status', 'reviewer', 'aiScore',
+        ]
+        read_only_fields = ['id']
+        extra_kwargs = {
+            'type': {'required': False, 'allow_blank': True, 'default': 'Document'},
+            'summary': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
+            'link': {'required': False, 'allow_blank': True, 'default': ''},
+            'status': {'required': False, 'default': 'Pending'},
+            'reviewer': {'required': False, 'allow_blank': True, 'default': ''},
+        }
+
+    def to_representation(self, instance):
+        return {
+            'id': instance.id,
+            'email': instance.email,
+            'employee': instance.employee_name or '',
+            'title': instance.title,
+            'type': instance.type or 'Document',
+            'date': instance.date.strftime(DATE_FMT) if instance.date else None,
+            'submitted': instance.date.strftime(DATE_FMT) if instance.date else (
+                instance.created_at.strftime(DATE_FMT) if instance.created_at else ''),
+            'summary': instance.summary or '',
+            'link': instance.link or '',
+            'fileName': instance.file_name or '',
+            'status': instance.status,
+            'reviewer': instance.reviewer or '',
+            'aiScore': instance.ai_score or 0,
+            'createdAt': instance.created_at.strftime(DATETIME_FMT) if instance.created_at else None,
+        }
+
+    def create(self, validated_data):
+        # Stamp the submission date server-side when the client didn't send one.
+        if not validated_data.get('date'):
+            from datetime import date as _date
+            validated_data['date'] = _date.today()
+        return super().create(validated_data)
+
+
+# Display label + dot colour for each activity-log event type. Colours map to
+# the React app's CSS vars (--success / --warn / --accent / --danger) so the
+# frontend can render the timeline dots without any client-side lookup.
+ATTENDANCE_EVENT_LABELS = {
+    'check-in': 'Check In',
+    'check-out': 'Check Out',
+    'break-start': 'Break Start',
+    'break-end': 'Break End',
+    'remote-switch': 'Remote Switch',
+    'office-switch': 'Office Switch',
+}
+ATTENDANCE_EVENT_COLORS = {
+    'check-in': 'success',
+    'check-out': 'danger',
+    'break-start': 'warn',
+    'break-end': 'success',
+    'remote-switch': 'accent',
+    'office-switch': 'success',
+}
+
+
+class AttendanceEventSerializer(serializers.ModelSerializer):
+    """Serialises an activity-log event into exactly the shape the check-in
+    page renders: ``{ time, event, location, color }`` plus raw fields."""
+
+    class Meta:
+        model = AttendanceEvent
+        fields = ['id', 'email', 'employee_name', 'date', 'event', 'location', 'at']
+        read_only_fields = ['id']
+
+    def to_representation(self, instance):
+        return {
+            'id': instance.id,
+            'email': instance.email,
+            'employee': instance.employee_name or '',
+            'type': instance.event,
+            'event': ATTENDANCE_EVENT_LABELS.get(instance.event, instance.event),
+            'location': instance.location or '—',
+            'time': instance.at.strftime('%I:%M %p') if instance.at else '',
+            'color': ATTENDANCE_EVENT_COLORS.get(instance.event, 'gray'),
+            'at': instance.at.strftime(DATETIME_FMT) if instance.at else None,
+        }

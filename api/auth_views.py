@@ -17,6 +17,7 @@ import secrets
 from datetime import timedelta
 
 import requests as http_requests
+from django.conf import settings
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -33,6 +34,18 @@ RESET_TTL_MINUTES = 60
 
 def _hash_code(code, salt):
     return hashlib.sha256(f'{salt}:{code}'.encode('utf-8')).hexdigest()
+
+
+def _dev_otp_enabled():
+    """Whether to print the OTP to the server console when email can't be sent.
+
+    Active in DEBUG, or when DEV_OTP_ECHO is truthy. This lets a developer
+    finish signing in offline (e.g. when Resend/SMTP is unreachable) without
+    ever exposing the code over the network — it goes only to the server log.
+    """
+    if str(os.environ.get('DEV_OTP_ECHO', '')).strip().lower() in ('1', 'true', 'yes', 'on'):
+        return True
+    return bool(getattr(settings, 'DEBUG', False))
 
 
 def _issue_otp(user, sender_email=None):
@@ -60,13 +73,23 @@ def _issue_otp(user, sender_email=None):
         footer="If you didn't try to sign in, you can safely ignore this email.",
     )
     text = f'Your HRMS login verification code is {code}. It expires in {OTP_TTL_MINUTES} minutes.'
-    return mailer.send_email(
+    result = mailer.send_email(
         to=user.email,
         subject='Your HRMS login code',
         html=html,
         text=text,
         sender_email=sender_email,
     )
+    if not result.get('ok') and _dev_otp_enabled():
+        # Email could not be delivered (e.g. no network / Resend unreachable).
+        # Print the code to the server console so login still works offline.
+        logging.warning(
+            '[DEV OTP] Email delivery failed (%s). Verification code for %s is %s '
+            '(valid %d min) — enter it on the code screen.',
+            result.get('error', ''), user.email, code, OTP_TTL_MINUTES,
+        )
+        result['devEcho'] = True
+    return result
 
 
 @csrf_exempt
@@ -89,6 +112,16 @@ def login(request):
 
         result = _issue_otp(user)
         if not result.get('ok'):
+            if result.get('devEcho'):
+                # Dev mode: code is in the server console — proceed to the code screen.
+                return JsonResponse({
+                    'otpRequired': True,
+                    'emailSent': False,
+                    'devMode': True,
+                    'email': user.email,
+                    'message': 'Email service is unreachable — your 6-digit code was printed to the '
+                               'server console (dev mode). Enter it below to continue.',
+                })
             return JsonResponse({
                 'otpRequired': True,
                 'emailSent': False,
@@ -118,6 +151,9 @@ def resend_otp(request):
         return err('Invalid email or password', 401)
     result = _issue_otp(user)
     if not result.get('ok'):
+        if result.get('devEcho'):
+            return JsonResponse({'ok': True, 'devMode': True,
+                                 'message': 'Email unreachable — a new code was printed to the server console (dev mode).'})
         return err('Could not send the verification code: ' + result.get('error', 'unknown error'), 502)
     return JsonResponse({'ok': True, 'message': f'A new code was sent to {_mask_email(user.email)}.'})
 

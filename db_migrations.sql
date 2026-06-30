@@ -109,4 +109,24 @@ select * from app_users;
 select * from user_profiles;
 
 
-select * from users;
+select * from app_users;
+
+
+show tables;
+
+
+select * from audit_logs;
+
+
+select * from employee_attendance;
+
+
+select * from work_submissions;
+
+select * from employee_tasks;
+select * from leave_requests;
+
+select * from attendance_events;
+
+
+SELECT * from employee_attendance;
