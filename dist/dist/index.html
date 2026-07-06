@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HRMS — AI-Powered HR Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap"
+    rel="stylesheet" />
+  <script>
+    /* Theme controller — applies light/dark/system before first paint (no flash). */
+    (function () {
+      var KEY = "hrms-theme";              // stored choice: "system" | "light" | "dark"
+      var mq = window.matchMedia("(prefers-color-scheme: dark)");
+      var ICONS = {
+        light: '<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v1.5M8 13.5V15M15 8h-1.5M2.5 8H1M12.36 3.64l-1.06 1.06M4.7 11.3l-1.06 1.06M12.36 12.36l-1.06-1.06M4.7 4.7L3.64 3.64" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+        dark: '<svg viewBox="0 0 16 16" fill="none"><path d="M13.5 9.2A5.5 5.5 0 116.8 2.5a4.4 4.4 0 006.7 6.7z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+        system: '<svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2.5" width="13" height="9" rx="1.3" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 14h5M8 11.5V14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'
+      };
+      function getChoice() { return localStorage.getItem(KEY) || "system"; }
+      function resolve(c) { return c === "system" ? (mq.matches ? "dark" : "light") : c; }
+      function apply() {
+        var c = getChoice();
+        document.documentElement.setAttribute("data-theme", resolve(c));
+        document.documentElement.setAttribute("data-theme-choice", c);
+        var btn = document.getElementById("theme-toggle");
+        if (btn) {
+          btn.innerHTML = ICONS[c] || ICONS.system;
+          btn.title = "Theme: " + c.charAt(0).toUpperCase() + c.slice(1) + " (click to change)";
+        }
+      }
+      window.__applyTheme = apply;
+      window.__cycleTheme = function () {
+        var order = ["system", "light", "dark"];
+        var next = order[(order.indexOf(getChoice()) + 1) % order.length];
+        localStorage.setItem(KEY, next);
+        apply();
+      };
+      apply(); // before paint — avoids flash of wrong theme
+      mq.addEventListener("change", function () { if (getChoice() === "system") apply(); });
+      window.addEventListener("DOMContentLoaded", function () {
+        document.documentElement.classList.add("theme-ready"); // enable transitions after load
+        // Re-apply when the React-rendered toggle button mounts (and fill its icon).
+        new MutationObserver(function () {
+          var btn = document.getElementById("theme-toggle");
+          if (btn && !btn.dataset.ready) { btn.dataset.ready = "1"; apply(); }
+        }).observe(document.body, { childList: true, subtree: true });
+      });
+    })();
+  </script>
+  <!-- Google Identity Services (for Sign In with Google) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script type="module" crossorigin src="/assets/index-DCh6bk0Rv4.js?v=23"></script>
+  <script defer src="/assets/hrms-actor.js?v=2"></script>
+  <script defer src="/assets/hrms-live.js?v=3"></script>
+  <script defer src="/assets/google-auth.js?v=11"></script>
+  <script defer src="/assets/interview-access.js?v=1"></script>
+  <script defer src="/assets/hrms-linkedin.js?v=1"></script>
+  <script defer src="/assets/hrms-mobile.js?v=1"></script>
+  <script defer src="/assets/hrms-checkin.js?v=5"></script>
+  <script defer src="/assets/hrms-status.js?v=6"></script>
+  <script defer src="/assets/hrms-attendance.js?v=6"></script>
+  <script defer src="/assets/hrms-rbac.js?v=6"></script>
+  <script defer src="/assets/hrms-perms.js?v=9"></script>
+  <script defer src="/assets/hrms-notifications.js?v=4"></script>
+  <script defer src="/assets/hrms-recruit-kpi.js?v=1"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-C53rmAEs.css?v=2">
+  <link rel="stylesheet" crossorigin href="/assets/theme-overrides.css?v=14">
+  <link rel="stylesheet" crossorigin href="/assets/responsive.css?v=3">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
+</html>

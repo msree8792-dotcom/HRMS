@@ -1,0 +1,788 @@
+/* ============================================================
+   Theme overrides — light / dark / system
+   The app's base theme (in index-*.css :root) is DARK.
+   We keep dark as the default and add a LIGHT palette that is
+   applied when <html data-theme="light"> is set by the
+   pre-paint script in index.html.
+   "system" resolves to light/dark via prefers-color-scheme.
+   ============================================================ */
+
+/* Light palette — overrides the dark :root variables.
+   Tuned for a clean, professional look: a soft neutral page behind crisp white
+   surfaces, solid (not barely-there) borders, and high-contrast text. */
+html[data-theme="light"] {
+  --bg: #d8d9dd;          /* page — clearly sits behind white cards */
+  --bg2: #e8e8ee;         /* cards / sidebar / topbar */
+  --bg3: #e2e3e7;         /* subtle fills (chips, search pill) */
+  --surface: #ffffff;
+  --surface2: #f2f5fa;
+  --accent: #2f6fe0;
+  --accent2: #7c5cfc;
+  --accent3: #16b894;
+  --accent4: #ef8b3c;
+  --text: #101011;        /* near-black headings / values */
+  --text2: #201f1f;       /* secondary text */
+  --text3: #313132;       /* muted labels */
+  --border: rgba(47, 111, 224, 0.22);
+  --border2: #c1c3c5;     /* crisp solid hairline (was a faint 0.10 alpha) */
+  --success: #15a37f;
+  --warn: #c6881a;
+  --danger: #d94835;
+}
+
+/* Light-mode scrollbar reads better with a muted thumb */
+html[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #c7d0e0;
+}
+
+/* ---- Light-mode component polish ----------------------------------------
+   Make form fields, cards and chrome read cleanly on the light palette. */
+
+/* Form fields: crisp white field, visible border, clear focus ring. */
+html[data-theme="light"] .input-field {
+  background: #ffffff;
+  border-color: #d6deeb;
+  color: var(--text);
+}
+html[data-theme="light"] .input-field::placeholder {
+  color: #9aa6bd;
+}
+html[data-theme="light"] .input-field:hover:not(:disabled) {
+  border-color: #c2cce0;
+}
+html[data-theme="light"] .input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(47, 111, 224, 0.14);
+}
+html[data-theme="light"] .input-field:disabled {
+  background: #f3f5fa;
+  color: var(--text2);
+  cursor: not-allowed;
+}
+
+/* Cards lift off the page with a soft shadow instead of a faint hairline. */
+html[data-theme="light"] .card {
+  border-color: #e6ebf3;
+  box-shadow: 0 1px 2px rgba(20, 30, 60, 0.04),
+              0 4px 14px rgba(20, 30, 60, 0.05);
+}
+
+/* Chrome: subtle elevation so white-on-white surfaces stay distinct. */
+html[data-theme="light"] .topbar {
+  box-shadow: 0 1px 3px rgba(20, 30, 60, 0.05);
+}
+html[data-theme="light"] .sidebar {
+  box-shadow: 1px 0 3px rgba(20, 30, 60, 0.035);
+}
+html[data-theme="light"] .topbar-search {
+  background: #f2f5fa;
+  border-color: #dce3ee;
+}
+
+/* Primary buttons get a touch of depth and a hover lift. */
+html[data-theme="light"] .btn-primary {
+  box-shadow: 0 1px 2px rgba(47, 111, 224, 0.28);
+}
+html[data-theme="light"] .btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+/* Smooth transition when switching themes (skipped on first paint) */
+html.theme-ready,
+html.theme-ready body,
+html.theme-ready .topbar,
+html.theme-ready .auth-card,
+html.theme-ready .auth-input {
+  transition: background-color 0.25s ease, color 0.25s ease,
+              border-color 0.25s ease;
+}
+
+/* Theme toggle button injected into the topbar */
+#theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text2);
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  padding: 0;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+#theme-toggle:hover {
+  color: var(--accent);
+  transform: scale(1.08);
+}
+#theme-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ================================================================
+   Hide Settings from the topbar
+   ================================================================ */
+
+/* Covers an <a> or <button> that navigates to /settings */
+.topbar a[href="/settings"],
+.topbar a[href*="/settings"],
+.topbar button[data-route="/settings"] {
+  display: none !important;
+}
+
+/* Covers elements with title or aria-label containing "settings" */
+.topbar [title*="Settings" i],
+.topbar [title*="settings" i],
+.topbar [aria-label*="Settings" i],
+.topbar [aria-label*="settings" i] {
+  display: none !important;
+}
+
+/* ================================================================
+   Hide Logout button from the topbar
+   ================================================================ */
+.topbar [title="Log out"],
+.topbar [title*="Log out" i],
+.topbar [title*="logout" i],
+.topbar [aria-label*="logout" i],
+.topbar [aria-label*="log out" i] {
+  display: none !important;
+}
+
+/* ================================================================
+   Hide the hrms-notifications injected bell
+   (the existing React bell in the topbar already shows notifications)
+   ================================================================ */
+#hrms-notifications-wrapper {
+  display: none !important;
+}
+
+/* ================================================================
+   Notification panel — light theme fixes
+   The panel uses inline styles so we must override with !important
+   ================================================================ */
+
+/* Panel container */
+html[data-theme="light"] #hrms-notifications-panel {
+  background: #ffffff !important;
+  border-color: #dce3ee !important;
+  box-shadow: 0 14px 45px rgba(20, 30, 60, 0.18) !important;
+  color: #101011 !important;
+}
+
+/* Panel header & section borders */
+html[data-theme="light"] #hrms-notifications-panel > div {
+  border-bottom-color: #e4e9f2 !important;
+}
+
+/* "Notifications" heading text */
+html[data-theme="light"] #hrms-notifications-panel strong {
+  color: #101011 !important;
+}
+
+/* Close button */
+html[data-theme="light"] #hrms-notifications-close {
+  color: #5a6478 !important;
+}
+html[data-theme="light"] #hrms-notifications-close:hover {
+  color: #2f6fe0 !important;
+}
+
+/* Search input */
+html[data-theme="light"] #hrms-notifications-search {
+  background: #f2f5fa !important;
+  border-color: #dce3ee !important;
+  color: #101011 !important;
+}
+html[data-theme="light"] #hrms-notifications-search::placeholder {
+  color: #9aa6bd !important;
+}
+
+/* Filter dropdown */
+html[data-theme="light"] #hrms-notifications-filter {
+  background: #f2f5fa !important;
+  border-color: #dce3ee !important;
+  color: #101011 !important;
+}
+html[data-theme="light"] #hrms-notifications-filter option {
+  background: #ffffff;
+  color: #101011;
+}
+
+/* Select all label */
+html[data-theme="light"] #hrms-notifications-panel label {
+  color: #5a6478 !important;
+}
+
+/* Action buttons: Mark all read / Delete selected / Clear all */
+html[data-theme="light"] #hrms-notifications-mark-all-read,
+html[data-theme="light"] #hrms-notifications-delete-selected,
+html[data-theme="light"] #hrms-notifications-clear-all {
+  background: #f2f5fa !important;
+  border-color: #dce3ee !important;
+  color: #101011 !important;
+}
+html[data-theme="light"] #hrms-notifications-mark-all-read:hover,
+html[data-theme="light"] #hrms-notifications-delete-selected:hover,
+html[data-theme="light"] #hrms-notifications-clear-all:hover {
+  background: #e6ebf5 !important;
+  border-color: #2f6fe0 !important;
+  color: #2f6fe0 !important;
+}
+
+/* Notification items */
+html[data-theme="light"] #hrms-notifications-list > div {
+  border-color: #e4e9f2 !important;
+}
+
+/* Unread item highlight */
+html[data-theme="light"] #hrms-notifications-list > div[style*="rgba(79, 142, 247, 0.12)"] {
+  background: rgba(47, 111, 224, 0.07) !important;
+}
+
+/* Notification title */
+html[data-theme="light"] #hrms-notifications-list div[style*="font-weight: 700"] {
+  color: #101011 !important;
+}
+
+/* Notification message */
+html[data-theme="light"] #hrms-notifications-list div[style*="font-size: 12px"][style*="color"] {
+  color: #5a6478 !important;
+}
+
+/* Notification timestamp */
+html[data-theme="light"] #hrms-notifications-list div[style*="font-size: 11px"] {
+  color: #8896ae !important;
+}
+
+/* Individual delete (✕) button */
+html[data-theme="light"] #hrms-notifications-list button[style*="font-size: 14px"] {
+  color: #8896ae !important;
+}
+html[data-theme="light"] #hrms-notifications-list button[style*="font-size: 14px"]:hover {
+  color: #d94835 !important;
+}
+
+/* Empty state message */
+html[data-theme="light"] #hrms-notifications-list div[style*="text-align:center"],
+html[data-theme="light"] #hrms-notifications-list div[style*="text-align: center"] {
+  color: #5a6478 !important;
+}
+
+
+
+/* ================================================================
+
+   Check-In / Check-Out  —  toggle switch + device icon
+   Injected into the topbar by hrms-checkin.js (v3)
+   ================================================================ */
+
+/* Outer wrapper: flex row holding [device-icon] [switch-pill] */
+.hrms-ci-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 3px 8px 3px 6px;
+  border-radius: 20px;
+  border: 1.5px solid rgba(120, 130, 160, 0.18);
+  background: rgba(120, 130, 160, 0.06);
+  transition: background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+}
+
+.hrms-ci-wrap:hover {
+  background: rgba(120, 130, 160, 0.12);
+  border-color: rgba(120, 130, 160, 0.28);
+}
+
+/* Active (checked-in) wrapper glows green */
+.hrms-ci-wrap.ci-active {
+  background: rgba(34, 197, 94, 0.10);
+  border-color: rgba(34, 197, 94, 0.35);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.08);
+}
+
+.hrms-ci-wrap.ci-active:hover {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.50);
+}
+
+/* Device icon badge (mobile phone or desktop monitor) */
+.hrms-ci-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text3, #7a879f);
+  transition: color 0.22s ease;
+  line-height: 1;
+}
+
+.hrms-ci-wrap.ci-active .hrms-ci-icon {
+  color: #22c55e;
+}
+
+.hrms-ci-icon svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+/* Toggle pill (the actual switch) */
+.hrms-ci-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(120, 130, 160, 0.25);
+  transition: background 0.25s ease;
+  outline: none;
+  flex-shrink: 0;
+}
+
+.hrms-ci-switch:focus-visible {
+  outline: 2px solid var(--accent, #4f8ef7);
+  outline-offset: 2px;
+}
+
+.hrms-ci-switch.ci-on {
+  background: #22c55e;
+}
+
+/* Knob (the sliding circle) */
+.hrms-ci-knob {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.22);
+  transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.22s ease;
+  pointer-events: none;
+}
+
+.hrms-ci-switch.ci-on .hrms-ci-knob {
+  left: 18px;  /* 34px - 14px - 2px */
+  box-shadow: 0 1px 4px rgba(0,0,0,0.28);
+}
+
+/* ---- Light-mode tweaks ---------------------------------------- */
+html[data-theme="light"] .hrms-ci-wrap {
+  border-color: rgba(70, 90, 140, 0.18);
+  background: rgba(70, 90, 140, 0.05);
+}
+
+html[data-theme="light"] .hrms-ci-wrap:hover {
+  background: rgba(70, 90, 140, 0.10);
+  border-color: rgba(70, 90, 140, 0.26);
+}
+
+html[data-theme="light"] .hrms-ci-wrap.ci-active {
+  background: rgba(21, 163, 127, 0.08);
+  border-color: rgba(21, 163, 127, 0.30);
+  box-shadow: 0 0 0 3px rgba(21, 163, 127, 0.07);
+}
+
+html[data-theme="light"] .hrms-ci-wrap.ci-active .hrms-ci-icon {
+  color: #15a37f;
+}
+
+html[data-theme="light"] .hrms-ci-switch.ci-on {
+  background: #15a37f;
+}
+
+/* ---- Mobile: hide label text if it were ever added ------------- */
+@media (max-width: 480px) {
+  .hrms-ci-wrap { padding: 3px 5px; }
+}
+
+/* ================================================================
+   Presence / STATUS picker
+   Settings > My Profile  —  injected by hrms-status.js (v1)
+   Available · Away · Busy · Invisible · Do not disturb
+   ================================================================ */
+
+.hrms-ps-block {
+  margin: 4px 0 20px;
+  width: 340px;
+  max-width: 100%;
+}
+
+/* relative wrapper so the panel can float over the details below it */
+.hrms-ps-field { position: relative; }
+
+.hrms-ps-head { margin-bottom: 8px; }
+
+.hrms-ps-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* The select-like pill that shows the current status */
+.hrms-ps-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border2);
+  background: var(--bg3);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.hrms-ps-control:hover:not(.is-disabled) { border-color: var(--accent); }
+.hrms-ps-control.is-disabled { cursor: not-allowed; opacity: 0.7; }
+
+.hrms-ps-current { flex: 1; text-align: left; }
+
+.hrms-ps-chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--text3);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.hrms-ps-control.is-open .hrms-ps-chevron { transform: rotate(180deg); }
+
+/* Status colour dot (reused in the control and each option) */
+.hrms-ps-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Dropdown panel — floats OVER the content below (does not push it down) */
+.hrms-ps-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  background: var(--bg2);
+  overflow: hidden;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
+}
+.hrms-ps-panel[hidden] { display: none; }
+
+/* section headers ("Default Status" / "Custom Status") */
+.hrms-ps-section {
+  font-size: 11.5px;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--text3);
+  padding: 9px 14px 4px;
+}
+.hrms-ps-section-sep { border-top: 1px solid var(--border2); margin-top: 4px; }
+
+.hrms-ps-option {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: background 0.15s ease;
+}
+.hrms-ps-option:hover { background: rgba(120, 130, 160, 0.10); }
+.hrms-ps-option.is-active { background: rgba(120, 130, 160, 0.06); }
+
+/* fixed-width icon slot (dot / arrow / bell / blank for custom) */
+.hrms-ps-ic {
+  width: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.hrms-ps-ic svg { width: 16px; height: 16px; display: block; }
+.hrms-ps-ic .hrms-ps-dot { margin: 0; }
+
+.hrms-ps-opt-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+.hrms-ps-check { width: 15px; height: 15px; color: #22c55e; flex-shrink: 0; }
+.hrms-ps-bell { width: 16px; height: 16px; }
+
+.hrms-ps-hint {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--text3);
+}
+
+/* Presence dot on the topbar avatar (visible app-wide) */
+.topbar .av { position: relative; }
+.hrms-presence-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--bg2);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+/* ---- Light-mode tweaks ---------------------------------------- */
+html[data-theme="light"] .hrms-ps-option:hover { background: rgba(70, 90, 140, 0.08); }
+html[data-theme="light"] .hrms-ps-panel { box-shadow: 0 10px 30px rgba(20, 30, 60, 0.14); }
+
+/* ================================================================
+   User dropdown menu — opens from the topbar avatar (bundle Ry)
+   ================================================================ */
+.hrms-umenu-item {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text2);
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.hrms-umenu-item:hover { background: var(--bg3); color: var(--text); }
+.hrms-umenu-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.8; }
+.hrms-umenu-item.danger {
+  color: var(--danger);
+  font-weight: 600;
+  border-top: 1px solid var(--border2);
+}
+.hrms-umenu-item.danger:hover { background: rgba(217, 72, 53, 0.08); color: var(--danger); }
+
+/* ================================================================
+   Right-side profile drawer — opens from the topbar avatar (bundle Ry)
+   ================================================================ */
+@keyframes hrms-drawer-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes hrms-drawer-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.hrms-drawer-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 200;
+  animation: hrms-drawer-fade 0.15s ease;
+}
+.hrms-drawer {
+  position: fixed; top: 0; right: 0;
+  height: 100vh; width: 360px; max-width: 92vw;
+  background: var(--bg2);
+  border-left: 1px solid var(--border2);
+  box-shadow: -14px 0 44px rgba(0, 0, 0, 0.35);
+  z-index: 201;
+  overflow-y: auto;
+  animation: hrms-drawer-in 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hrms-drawer-x {
+  position: absolute; top: 14px; right: 14px;
+  width: 30px; height: 30px;
+  border: none; border-radius: 50%;
+  background: var(--bg3); color: var(--text2);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.hrms-drawer-x:hover { background: var(--border2); color: var(--text); }
+.hrms-drawer-x svg { width: 15px; height: 15px; }
+
+.hrms-drawer-head {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 3px; padding: 36px 20px 18px;
+  border-bottom: 1px solid var(--border2);
+}
+.hrms-drawer-av {
+  width: 84px; height: 84px; font-size: 26px; color: #fff;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; flex-shrink: 0;
+}
+.hrms-drawer-name { font-family: var(--font-d); font-size: 18px; font-weight: 700; color: var(--text); margin-top: 8px; }
+.hrms-drawer-email { font-size: 13px; color: var(--text3); }
+.hrms-drawer-acct { font-size: 12.5px; color: var(--text3); margin-top: 3px; }
+.hrms-drawer-acct .hrms-drawer-dot { margin: 0 7px; opacity: 0.6; }
+.hrms-drawer-signout { color: var(--danger); font-weight: 600; cursor: pointer; }
+
+.hrms-drawer-sec { padding: 16px 20px; border-bottom: 1px solid var(--border2); }
+.hrms-drawer-section-lbl {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--text3); margin-bottom: 10px;
+}
+.hrms-drawer-status {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--border2); border-radius: 10px;
+  padding: 9px 12px; background: var(--bg3);
+}
+.hrms-drawer-status-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.hrms-drawer-status-sel {
+  flex: 1; border: none; background: none; color: var(--text);
+  font-size: 13px; font-weight: 500; font-family: var(--font); cursor: pointer; outline: none;
+}
+/* native dropdown popups must follow the theme, or they render light-on-light
+   (invisible) in dark mode */
+.hrms-drawer-status-sel, .hrms-att-view { color-scheme: dark; }
+html[data-theme="light"] .hrms-drawer-status-sel,
+html[data-theme="light"] .hrms-att-view { color-scheme: light; }
+.hrms-drawer-status-sel option,
+.hrms-drawer-status-sel optgroup,
+.hrms-att-view option {
+  background: var(--bg2);
+  color: var(--text);
+}
+.hrms-drawer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.hrms-drawer-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 8px; border-radius: 8px; cursor: pointer;
+  font-size: 13px; color: var(--text2);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.hrms-drawer-item:hover { background: var(--bg3); color: var(--text); }
+.hrms-drawer-ic { display: inline-flex; color: var(--accent); flex-shrink: 0; }
+.hrms-drawer-ic svg { width: 18px; height: 18px; }
+
+/* plain text list (Settings sub-sections) */
+.hrms-drawer-list { display: flex; flex-direction: column; }
+.hrms-drawer-litem {
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text2);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.hrms-drawer-litem:hover { background: var(--bg3); color: var(--text); }
+
+/* ================================================================
+   Attendance timeline modal (hrms-attendance.js)
+   ================================================================ */
+.hrms-att-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 300;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  animation: hrms-drawer-fade 0.15s ease;
+}
+.hrms-att-modal {
+  width: 860px; max-width: 96vw; max-height: 90vh;
+  display: flex; flex-direction: column;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+.hrms-att-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 22px; border-bottom: 1px solid var(--border2); flex-shrink: 0;
+}
+.hrms-att-title { font-family: var(--font-d); font-size: 18px; font-weight: 700; color: var(--text); }
+.hrms-att-x {
+  width: 32px; height: 32px; border: none; border-radius: 50%;
+  background: var(--bg3); color: var(--text2); cursor: pointer;
+  font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
+.hrms-att-x:hover { background: var(--border2); color: var(--text); }
+.hrms-att-scroll { padding: 18px 22px 24px; overflow-y: auto; }
+
+.hrms-att-banner {
+  display: flex; gap: 10px; align-items: flex-start;
+  border: 1px dashed var(--warn);
+  background: rgba(198, 136, 26, 0.08);
+  color: var(--text2); border-radius: 10px;
+  padding: 11px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 18px;
+}
+.hrms-att-banner svg { color: var(--warn); }
+
+.hrms-att-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hrms-att-navleft { display: flex; align-items: center; gap: 10px; }
+.hrms-att-arrow {
+  width: 28px; height: 28px; border: none; border-radius: 7px;
+  background: none; color: var(--text2); cursor: pointer; font-size: 20px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.hrms-att-arrow:hover { background: var(--bg3); color: var(--text); }
+.hrms-att-range { font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.hrms-att-view {
+  border: 1px solid var(--border2); background: var(--bg3); color: var(--text);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px; font-family: var(--font);
+  cursor: pointer; min-width: 150px;
+}
+.hrms-att-tl-label { font-size: 13px; font-weight: 600; color: var(--text2); margin: 16px 0 8px; }
+.hrms-att-avg-note { font-weight: 500; color: #22c55e; margin-left: 10px; font-size: 12px; }
+
+.hrms-att-hours { position: relative; height: 22px; margin-left: 150px; }
+.hrms-att-hour { position: absolute; top: 4px; font-size: 11px; color: var(--text3); }
+/* the average check-in pill that sits on top of the green line */
+.hrms-att-avg-tag {
+  position: absolute; top: -1px; transform: translateX(-50%);
+  background: #22c55e; color: #06281a;
+  font-size: 10.5px; font-weight: 700; line-height: 1;
+  padding: 3px 8px; border-radius: 10px; white-space: nowrap; z-index: 2;
+}
+
+.hrms-att-body { position: relative; }
+.hrms-att-grid { position: absolute; left: 150px; right: 0; top: 0; bottom: 0; pointer-events: none; }
+.hrms-att-vline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border2); opacity: 0.45; }
+.hrms-att-now { position: absolute; top: 0; bottom: 0; width: 2px; background: #22c55e; opacity: 0.85; }
+
+.hrms-att-row { display: grid; grid-template-columns: 150px 1fr; align-items: center; height: 72px; }
+.hrms-att-dname { font-size: 14px; font-weight: 600; color: var(--text); }
+.hrms-att-dhrs { font-size: 12px; color: var(--accent); margin-top: 3px; }
+.hrms-att-track { position: relative; height: 100%; }
+.hrms-att-bar {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  height: 4px; border-radius: 3px; background: #3b82f6; min-width: 3px;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+/* hover targets + floating tooltip */
+.hrms-att-row[data-tip] { cursor: default; }
+.hrms-att-row[data-tip]:hover { background: rgba(120, 130, 160, 0.06); border-radius: 8px; }
+.hrms-att-avg-tag { cursor: pointer; }
+.hrms-att-tip {
+  position: fixed; z-index: 400;
+  background: #1e2330; color: #e8ecf4;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px; padding: 8px 11px;
+  font-size: 12px; line-height: 1.65;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  pointer-events: none; white-space: nowrap;
+}
+.hrms-att-tip b { color: #fff; font-weight: 600; }
+.hrms-att-tip-head { font-weight: 700; color: #7fd1ff; margin-bottom: 3px; }
+
+/* Fix sidebar shaking/jittering on scroll on desktop */
+@media (min-width: 769px) {
+  .sidebar {
+    will-change: auto !important;
+    transform: none !important;
+  }
+}
+

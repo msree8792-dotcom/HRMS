@@ -1,0 +1,10 @@
+Options -MultiViews
+RewriteEngine On
+
+# Do NOT rewrite API requests — let cPanel's Node.js app (Passenger) handle them.
+RewriteRule ^api(/.*)?$ - [L]
+
+# SPA fallback: everything else that isn't a real file/dir goes to index.html
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [QSA,L]

@@ -1,0 +1,210 @@
+/* ============================================================
+   responsive.css — make the HRMS dashboard usable on phones,
+   tablets and small windows. Layered ON TOP of index-*.css
+   without rebuilding the React bundle.
+
+   Strategy
+   - Layout uses stable semantic classes (.app/.sidebar/.main/
+     .content/.topbar/.stat-grid/.grid-*/.kanban/...) which we
+     target directly.
+   - The sidebar is already position:fixed, so on phones it
+     becomes a slide-in drawer toggled by body.sidebar-open
+     (set by hrms-mobile.js).
+   - Modals / floating widgets use React INLINE styles (no
+     classes), so they are clamped via [style*=...] attribute
+     selectors with !important (inline styles otherwise win).
+   ============================================================ */
+
+/* Toast / pop notifications (e.g. "Interview created") slide down from the
+   top-center. The component uses this keyframe by name; it must preserve the
+   horizontal centering transform so the toast stays centered. */
+@keyframes hrmsToastDown {
+  from { opacity: 0; transform: translateX(-50%) translateY(-18px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Hamburger + backdrop are injected by hrms-mobile.js. Hidden on
+   desktop; revealed inside the mobile breakpoint below. */
+#hrms-hamburger { display: none; }
+#hrms-sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+/* ------------------------------------------------------------
+   Tablets / small laptops (<= 1024px): relax the densest grids
+   ------------------------------------------------------------ */
+@media (max-width: 1024px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .kanban { grid-template-columns: repeat(2, 1fr); }
+  .topbar-search { width: 160px; }
+}
+
+/* ------------------------------------------------------------
+   Phones / narrow windows (<= 768px): single column + drawer
+   ------------------------------------------------------------ */
+@media (max-width: 768px) {
+  /* Use the dynamic viewport height so mobile browser chrome
+     (address bar) doesn't crop the layout. */
+  .app { height: 100vh; height: 100dvh; }
+
+  /* Sidebar -> off-canvas drawer */
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.26s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+    width: 264px;
+    max-width: 84vw;
+    z-index: 100;
+  }
+  body.sidebar-open .sidebar { transform: translateX(0); }
+  body.sidebar-open #hrms-sidebar-backdrop { display: block; opacity: 1; }
+
+  /* Main column spans full width once the sidebar is detached */
+  .main { margin-left: 0; }
+
+  /* Hamburger sits first in the topbar */
+  #hrms-hamburger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin-right: 2px;
+    border: none;
+    background: transparent;
+    color: var(--text, #e8edf7);
+    cursor: pointer;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  #hrms-hamburger:hover { background: var(--bg3, rgba(255,255,255,0.06)); }
+  #hrms-hamburger svg { width: 22px; height: 22px; }
+
+  /* Topbar: tighter, no fixed-width search hogging space */
+  .topbar { padding: 0 14px; gap: 10px; }
+  .topbar-title { font-size: 15px; }
+  .topbar-search { display: none; }
+
+  /* Content breathing room */
+  .content { padding: 16px 14px; }
+
+  /* Collapse every multi-column grid to a single column */
+  .stat-grid,
+  .grid-2,
+  .grid-3,
+  .grid-2-1,
+  .grid-1-2,
+  .kanban {
+    grid-template-columns: 1fr;
+  }
+
+  /* Section headers stack (title above the action button) */
+  .sec-head { flex-direction: column; align-items: stretch; gap: 12px; }
+  .sec-head .btn-primary,
+  .sec-head .ai-btn { width: 100%; justify-content: center; }
+
+  /* Cards / interview toggles: a little tighter */
+  .card { padding: 16px; }
+  .interview-type-toggle { gap: 8px; }
+
+  /* Tables already have .table-wrap{overflow-x:auto}; make sure
+     they scroll horizontally instead of overflowing the page. */
+  .table-wrap { -webkit-overflow-scrolling: touch; }
+  table { min-width: 560px; }
+
+  /* --- Modals / dialogs (React inline-styled overlays) ---
+     Only the CENTERED overlays (justify-content:center) are dialog
+     boxes — target their inner card. This avoids clamping non-centered
+     fullscreen panels (e.g. the AI interview view). */
+  div[style*="position: fixed"][style*="inset: 0px"][style*="justify-content: center"] > div {
+    max-width: 94vw !important;
+    width: auto !important;
+    max-height: 88vh !important;
+    overflow-y: auto !important;
+  }
+  /* Overlay padding shrink so the card isn't edge-to-edge */
+  div[style*="position: fixed"][style*="inset: 0px"][style*="justify-content: center"] {
+    padding: 14px !important;
+  }
+
+  /* Floating widgets (AI chat panel, "Live Interviews" button)
+     anchored bottom/right with a fixed pixel width. */
+  div[style*="position: fixed"][style*="width: 380px"] {
+    width: min(380px, 92vw) !important;
+    right: 12px !important;
+    max-height: 78vh !important;
+  }
+
+  /* --- Horizontal-overflow guard ---------------------------------
+     Nothing should make the page scroll sideways. The wide inline-
+     styled rows below get their own internal scroll / wrapping so
+     content stops being clipped on both edges. */
+  .main,
+  .content { max-width: 100%; overflow-x: hidden; }
+
+  /* Sub-tab bar (Dashboard / AI Interviewer / Schedule & Links /
+     Follow-up Emails / Recordings). It is an inline-styled flex row
+     with width:fit-content, so on a phone its five tabs stretched
+     past the viewport and dragged the whole page wider. Let the bar
+     scroll horizontally on its own instead. */
+  div[style*="width: fit-content"] {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;          /* Firefox: hide the scrollbar */
+  }
+  div[style*="width: fit-content"]::-webkit-scrollbar { display: none; }
+  /* Keep each tab at its natural width so labels don't get squashed. */
+  div[style*="width: fit-content"] > button { flex-shrink: 0; }
+
+  /* Candidate Follow-up status rows: avatar + name + score badge +
+     the three Selected / Waitlisted / Rejected buttons don't fit on
+     one phone line, which clipped the buttons off the right edge.
+     Allow the row to wrap so every button stays on screen. */
+  div[style*="padding: 13px 0px"] { flex-wrap: wrap !important; }
+  div[style*="padding: 13px 0px"] > div[style*="width: 110px"] {
+    width: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------
+   Injected Recruit controls — filter toolbars (.hr-toolbar) and
+   paginators (.hr-pager). Tagged with stable classes so they
+   adapt cleanly instead of overflowing on phones.
+   ------------------------------------------------------------ */
+@media (max-width: 768px) {
+  /* Search input takes its own row; the filter <select>s sit
+     two-per-row below it. */
+  .hr-toolbar { gap: 8px; }
+  .hr-toolbar > input  { flex: 1 1 100% !important; min-width: 0; }
+  .hr-toolbar > select { flex: 1 1 calc(50% - 4px) !important; min-width: 0; }
+  /* 16px font-size stops iOS Safari auto-zooming when they focus. */
+  .hr-toolbar > input,
+  .hr-toolbar > select { font-size: 16px !important; }
+
+  /* Paginator: let the "Showing …" count and the Prev/Next
+     buttons wrap onto two rows instead of being squashed. */
+  .hr-pager { flex-wrap: wrap; row-gap: 10px; }
+  .hr-pager > div:last-child { margin-left: auto; }
+}
+
+/* ------------------------------------------------------------
+   Very small phones (<= 420px): final polish
+   ------------------------------------------------------------ */
+@media (max-width: 420px) {
+  .content { padding: 12px 10px; }
+  .stat-value { font-size: 24px; }
+  .sec-head h2 { font-size: 18px; }
+  .auth-card { padding: 26px 20px; }
+
+  /* On the tiniest screens stack the filters one per row. */
+  .hr-toolbar > select { flex: 1 1 100% !important; }
+}
