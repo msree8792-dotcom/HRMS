@@ -53,7 +53,11 @@ CSRF_TRUSTED_ORIGINS = [
 # user's MySQL database — only the 8 application tables.
 INSTALLED_APPS = [
     'corsheaders',
+    # 'django.contrib.auth'
+    
     'django.contrib.staticfiles',
+    
+    
     'rest_framework',
     'api',
 ]
@@ -153,7 +157,7 @@ STORAGES = {
 # ---------------------------------------------------------------------------
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 from corsheaders.defaults import default_headers  # noqa: E402
-CORS_ALLOW_HEADERS = list(default_headers) + ['x-api-key']
+CORS_ALLOW_HEADERS = list(default_headers) + ['x-api-key', 'x-user-email', 'x-actor-email']
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'

@@ -104,16 +104,23 @@ def login(request):
         if not email or not password:
             return err('email and password are required')
 
-        user = AppUser.objects.filter(email=email).first()
+        user = AppUser.objects.select_related('role_ref').filter(email=email).first()
         # Constant-ish messaging: don't reveal which half was wrong.
         if not user or user.password != password:
             return err('Invalid email or password', 401)
         if user.status != 'active':
             return err('This account is disabled. Contact your administrator.', 403)
-        # Role gate: the selected role must match the account's actual role.
-        # Validated before any OTP is issued so a wrong choice fails fast.
-        if role and role != (user.role or '').strip().lower():
-            return err('The selected role does not match this account. Please choose your correct role.', 403)
+        # Role gate: the selected role (an RBAC roles.name) must match the
+        # account's assigned role. Uses role_ref when set, else maps the legacy
+        # role string onto a seeded role name. Checked before any OTP is issued.
+        if role:
+            if user.role_ref_id and user.role_ref:
+                actual = user.role_ref.name or ''
+            else:
+                actual = {'admin': 'Super Admin', 'hr': 'HR Manager', 'recruitment': 'HR Executive'}.get(
+                    (user.role or '').lower(), (user.role or ''))
+            if role != actual.strip().lower():
+                return err('The selected role does not match this account. Please choose your correct role.', 403)
 
         result = _issue_otp(user)
         if not result.get('ok'):

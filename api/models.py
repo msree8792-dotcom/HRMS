@@ -125,8 +125,18 @@ class AppUser(models.Model):
     email = models.CharField(max_length=255, unique=True)
     password = models.CharField(max_length=255, default='', blank=True)
     initials = models.CharField(max_length=10, default='', blank=True)
-    role = models.CharField(max_length=40, default='admin')      # admin | recruitment | hr
+    role = models.CharField(max_length=40, default='admin')      # admin | recruitment | hr (legacy string)
     status = models.CharField(max_length=20, default='active')   # active | disabled
+    # RBAC links (see the roles / companies tables). Nullable + additive so the
+    # legacy ``role`` string above keeps driving the current login role-gate.
+    role_ref = models.ForeignKey(
+        'Role', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='users', db_column='role_id',
+    )
+    company = models.ForeignKey(
+        'Company', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='users', db_column='company_id',
+    )
     # Social / Google login fields
     auth_provider = models.CharField(max_length=20, default='email')  # email | google
     google_id = models.CharField(max_length=128, null=True, blank=True, unique=True)
@@ -199,6 +209,21 @@ class LoginOtp(models.Model):
     class Meta:
         db_table = 'login_otps'
         ordering = ['-id']
+
+
+class Notification(models.Model):
+    """Lightweight in-app notifications for employees and admins."""
+    recipient = models.CharField(max_length=255, db_index=True)
+    title = models.CharField(max_length=255, default='', blank=True)
+    message = models.TextField(default='', blank=True)
+    notification_type = models.CharField(max_length=20, default='info')
+    is_read = models.BooleanField(default=False)
+    link = models.CharField(max_length=255, default='', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'notifications'
+        ordering = ['-created_at']
 
 
 class PasswordReset(models.Model):
@@ -345,3 +370,96 @@ class AttendanceEvent(models.Model):
     class Meta:
         db_table = 'attendance_events'
         ordering = ['at', 'id']
+
+
+# ===========================================================================
+# Role-Based Access Control (RBAC)
+# ---------------------------------------------------------------------------
+# Super Admin creates Roles + Permission Groups, groups own Permissions, and a
+# Role is granted Permissions (directly or by assigning whole Groups). Every
+# table below is indexed on the columns the API filters/joins on so the list,
+# assign and permission-check queries stay O(indexed-lookup), never N+1.
+# ===========================================================================
+class Company(models.Model):
+    """Tenant / org that owns users. Referenced by ``app_users.company_id``."""
+    name = models.CharField(max_length=200, unique=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'companies'
+        ordering = ['name']
+
+
+class Module(models.Model):
+    """A top-level feature area for grouping menus/permissions
+    (Employee, Attendance, Leave, Payroll, ...)."""
+    name = models.CharField(max_length=100, unique=True)
+    icon = models.CharField(max_length=60, default='', blank=True)
+    order = models.IntegerField(default=0, db_index=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'modules'
+        ordering = ['order', 'id']
+
+
+class Role(models.Model):
+    """A named set of permissions (Super Admin, HR Manager, Employee, ...)."""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.CharField(max_length=255, default='', blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_by = models.ForeignKey(
+        AppUser, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='roles_created', db_column='created_by',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'roles'
+        ordering = ['name']
+
+
+class PermissionGroup(models.Model):
+    """A bundle of permissions under a module (e.g. "Employee Group")."""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.CharField(max_length=255, default='', blank=True)
+    module = models.ForeignKey(
+        Module, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='groups', db_column='module_id',
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'permission_groups'
+        ordering = ['name']
+
+
+class Permission(models.Model):
+    """A single capability, addressed by a stable ``code`` (e.g. employee.view)."""
+    name = models.CharField(max_length=150)
+    code = models.CharField(max_length=100, unique=True)
+    description = models.CharField(max_length=255, default='', blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    group = models.ForeignKey(
+        PermissionGroup, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='permissions', db_column='group_id',
+    )
+
+    class Meta:
+        db_table = 'permissions'
+        ordering = ['group_id', 'id']
+
+
+class RolePermission(models.Model):
+    """Join row granting one permission to one role. The unique index doubles as
+    the fast lookup path for permission checks and prevents duplicate grants."""
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='role_permissions')
+    permission = models.ForeignKey(Permission, on_delete=models.CASCADE, related_name='role_permissions')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'role_permissions'
+        ordering = ['id']
+        unique_together = (('role', 'permission'),)

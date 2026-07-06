@@ -47,6 +47,12 @@ urlpatterns = [
     path('users', views.users),
     path('users/<str:email>', views.user_detail),
 
+    path('notifications', views.notifications),
+    path('notifications/<int:pk>/read', views.notification_read),
+    path('notifications/<int:pk>', views.notification_delete),
+    path('notifications/delete', views.notifications_delete_batch),
+    path('notifications/read-all', views.notifications_read_all),
+
     path('user-settings/<str:email>', views.user_settings),
     path('user-settings/<str:email>/profile', views.user_profile),
     path('user-settings/<str:email>/email-config', views.user_email_config),
@@ -76,6 +82,26 @@ urlpatterns = [
     path('submissions', views.submissions),
     path('submissions/<int:pk>', views.submission_detail),
 
+    # Role-Based Access Control (RBAC)
+    path('rbac/stats', views.rbac_stats),
+    path('rbac/users', views.rbac_users),
+    path('rbac/users/<int:pk>', views.rbac_user_detail),
+    path('roles', views.roles),
+    path('roles/<int:pk>', views.role_detail),
+    path('roles/<int:pk>/groups', views.role_groups),
+    path('roles/<int:pk>/permissions', views.role_permissions_view),
+    path('permission-groups', views.permission_groups),
+    path('permission-groups/<int:pk>', views.permission_group_detail),
+    path('permission-groups/<int:pk>/permissions', views.permission_group_permissions),
+    path('permissions', views.permissions),
+    path('permissions/<int:pk>', views.permission_detail),
+    path('modules', views.modules),
+    path('companies', views.companies),
+    path('me/permissions', views.my_permissions),
+
     path('config', views.client_config),
     path('health', views.health),
+
+    # Recruitment KPI Dashboard
+    path('recruitment/kpis', views.recruitment_kpis),
 ]

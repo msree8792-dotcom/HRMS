@@ -19,8 +19,14 @@ from rest_framework import serializers
 from .models import (
     AppUser,
     AttendanceEvent,
+    Company,
     EmployeeAttendance,
     EmployeeTask,
+    Module,
+    Notification,
+    Permission,
+    PermissionGroup,
+    Role,
     InterviewLink,
     InterviewRecording,
     JobPost,
@@ -150,6 +156,16 @@ class InterviewTypeField(serializers.Field):
 # ---------------------------------------------------------------------------
 # Jobs
 # ---------------------------------------------------------------------------
+class NotificationSerializer(serializers.ModelSerializer):
+    notificationType = serializers.CharField(source='notification_type')
+    isRead = serializers.BooleanField(source='is_read')
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
+    class Meta:
+        model = Notification
+        fields = ['id', 'recipient', 'title', 'message', 'notificationType', 'isRead', 'link', 'createdAt']
+
+
 class JobPostSerializer(serializers.ModelSerializer):
     remote = serializers.BooleanField(source='is_remote', required=False, default=False)
     description = serializers.CharField(
@@ -748,4 +764,113 @@ class AttendanceEventSerializer(serializers.ModelSerializer):
             'time': instance.at.strftime('%I:%M %p') if instance.at else '',
             'color': ATTENDANCE_EVENT_COLORS.get(instance.event, 'gray'),
             'at': instance.at.strftime(DATETIME_FMT) if instance.at else None,
+        }
+
+
+# ===========================================================================
+# RBAC serializers
+# ---------------------------------------------------------------------------
+# These read only fields already loaded by the view (annotated counts +
+# select_related FKs), so serialising a list never fires a per-row query.
+# ===========================================================================
+class CompanySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Company
+        fields = ['id', 'name', 'is_active']
+
+    def to_representation(self, i):
+        return {
+            'id': i.id, 'name': i.name, 'isActive': i.is_active,
+            'createdAt': i.created_at.strftime(DATETIME_FMT) if i.created_at else None,
+        }
+
+
+class ModuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Module
+        fields = ['id', 'name', 'icon', 'order', 'is_active']
+
+    def to_representation(self, i):
+        return {
+            'id': i.id, 'name': i.name, 'icon': i.icon or '',
+            'order': i.order, 'isActive': i.is_active,
+        }
+
+
+class RoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Role
+        fields = ['id', 'name', 'description', 'is_active']
+        extra_kwargs = {
+            'description': {'required': False, 'allow_blank': True, 'default': ''},
+            'is_active': {'required': False, 'default': True},
+        }
+
+    def to_representation(self, i):
+        return {
+            'id': i.id,
+            'name': i.name,
+            'description': i.description or '',
+            'isActive': i.is_active,
+            'status': 'Active' if i.is_active else 'Inactive',
+            # ``permission_count`` / ``user_count`` come from the view's annotate();
+            # fall back to a query only when unannotated (detail views).
+            'permissionCount': getattr(i, 'permission_count', None)
+                if getattr(i, 'permission_count', None) is not None
+                else i.role_permissions.count(),
+            'userCount': getattr(i, 'user_count', 0) or 0,
+            'createdBy': (i.created_by.full_name if i.created_by_id and i.created_by else ''),
+            'createdAt': i.created_at.strftime(DATETIME_FMT) if i.created_at else None,
+        }
+
+
+class PermissionGroupSerializer(serializers.ModelSerializer):
+    module = serializers.PrimaryKeyRelatedField(
+        queryset=Module.objects.all(), required=False, allow_null=True)
+
+    class Meta:
+        model = PermissionGroup
+        fields = ['id', 'name', 'description', 'module', 'is_active']
+        extra_kwargs = {
+            'description': {'required': False, 'allow_blank': True, 'default': ''},
+            'is_active': {'required': False, 'default': True},
+        }
+
+    def to_representation(self, i):
+        return {
+            'id': i.id,
+            'name': i.name,
+            'description': i.description or '',
+            'moduleId': i.module_id,
+            'module': (i.module.name if i.module_id and i.module else ''),
+            'isActive': i.is_active,
+            'permissionCount': getattr(i, 'permission_count', None)
+                if getattr(i, 'permission_count', None) is not None
+                else i.permissions.count(),
+            'createdAt': i.created_at.strftime(DATETIME_FMT) if i.created_at else None,
+        }
+
+
+class PermissionSerializer(serializers.ModelSerializer):
+    group = serializers.PrimaryKeyRelatedField(
+        queryset=PermissionGroup.objects.all(), required=False, allow_null=True)
+
+    class Meta:
+        model = Permission
+        fields = ['id', 'name', 'code', 'description', 'group', 'is_active']
+        extra_kwargs = {
+            'description': {'required': False, 'allow_blank': True, 'default': ''},
+            'is_active': {'required': False, 'default': True},
+        }
+
+    def to_representation(self, i):
+        return {
+            'id': i.id,
+            'name': i.name,
+            'code': i.code,
+            'description': i.description or '',
+            'isActive': i.is_active,
+            'groupId': i.group_id,
+            'group': (i.group.name if i.group_id and i.group else ''),
+            'module': (i.group.module.name if i.group_id and i.group and i.group.module_id and i.group.module else ''),
         }

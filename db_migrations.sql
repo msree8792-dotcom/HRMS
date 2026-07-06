@@ -114,6 +114,10 @@ select * from app_users;
 
 show tables;
 
+select * from companies;
+
+select * from roles;
+
 
 select * from audit_logs;
 
@@ -129,4 +133,7 @@ select * from leave_requests;
 select * from attendance_events;
 
 
+
+
+SELECT * from audit_logs;
 SELECT * from employee_attendance;

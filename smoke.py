@@ -23,7 +23,8 @@ except OSError:
 # test we create the tables we exercise straight from the model definitions.
 from api import models as M
 with connection.schema_editor() as se:
-    for mdl in (M.AppUser, M.LoginOtp, M.PasswordReset, M.LiveSession,
+    for mdl in (M.Company, M.Role, M.PermissionGroup, M.Permission, M.RolePermission,
+                M.AppUser, M.LoginOtp, M.PasswordReset, M.LiveSession,
                 M.InterviewLink, M.JobPost, M.UserEmailConfig):
         se.create_model(mdl)
 
